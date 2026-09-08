@@ -2,6 +2,10 @@
 name = "urwtest-rs"
 version = "0.1.0-Alpha1"
 edition = "2024"
+description = "Cross-platform mounted-volume read/write test tool"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/Kazusa1085/URWTest-RS"
+readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.104"
