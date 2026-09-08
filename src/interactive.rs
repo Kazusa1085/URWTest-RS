@@ -5,11 +5,11 @@ use anyhow::{Context, Result, bail};
 
 use crate::console::{Console, format_bytes};
 use crate::engine::{self, RunOptions, TestReport, VerifyOptions};
-use crate::manifest::{self, ManifestStatus};
+use crate::manifest::{self, StateStatus};
 use crate::types::{CleanupMode, VerifyMode};
 use crate::volume::{self, VolumeInfo};
 
-pub fn run(console: &Console) -> Result<()> {
+pub fn run(console: &Console, progress: bool) -> Result<()> {
     let volumes = volume::list_volumes();
     if volumes.is_empty() {
         bail!("no testable mounted volumes found");
@@ -23,15 +23,20 @@ pub fn run(console: &Console) -> Result<()> {
     let volume = volume::find_volume(&target)
         .with_context(|| format!("{} is not a mounted volume root", target.display()))?;
 
-    if let Some(manifest) = manifest::load(&target)? {
-        match manifest.status {
-            ManifestStatus::PendingVerify => {
+    let state = manifest::load_state(&volume)?;
+    let files = manifest::scan_test_files(&target)?;
+
+    if let Some(state) = state {
+        match state.status {
+            StateStatus::PendingVerify => {
                 let verify_now = prompt_yes_no("检测到存在已经写入数据，是否立刻校验？", true)?;
                 if verify_now {
                     let options = VerifyOptions {
                         target: target.clone(),
+                        volume: volume.clone(),
                         stop_on_fail: false,
                         cleanup: CleanupMode::OnSuccess,
+                        progress,
                     };
                     let report = engine::verify_test(&options, console)?;
                     print_report(console, &report);
@@ -49,6 +54,7 @@ pub fn run(console: &Console) -> Result<()> {
                                 stop_on_fail: false,
                                 cleanup: CleanupMode::OnSuccess,
                                 force: false,
+                                progress,
                             };
                             let report = engine::run_test(&options, console)?;
                             print_report(console, &report);
@@ -57,37 +63,54 @@ pub fn run(console: &Console) -> Result<()> {
                 }
                 return Ok(());
             }
-            ManifestStatus::PassComplete => {
+            StateStatus::PassComplete => {
                 let continue_next = prompt_yes_no("检测到上一圈已完成，是否继续下一圈？", true)?;
                 if continue_next {
                     let options = RunOptions {
                         target,
                         volume,
-                        passes: manifest.total_passes,
+                        passes: state.total_passes,
                         verify: VerifyMode::Immediate,
                         delay: None,
                         stop_on_fail: false,
                         cleanup: CleanupMode::OnSuccess,
                         force: false,
+                        progress,
                     };
                     let report = engine::run_test(&options, console)?;
                     print_report(console, &report);
                 }
                 return Ok(());
             }
-            ManifestStatus::Completed => {
+            StateStatus::Completed => {
                 console.info("该卷上的测试已经完成。");
                 return Ok(());
             }
-            ManifestStatus::Failed => {
+            StateStatus::Failed => {
                 console.fail("该卷上的测试之前失败了。请使用 --force 重新开始。");
                 return Ok(());
             }
-            ManifestStatus::Writing | ManifestStatus::Verifying => {
+            StateStatus::Writing | StateStatus::Verifying => {
                 console.fail("检测到中断的测试状态。请使用 --force 重新开始。");
                 return Ok(());
             }
         }
+    }
+
+    if !files.is_empty() {
+        let verify_now = prompt_yes_no("检测到存在已经写入数据，是否立刻校验？", true)?;
+        if verify_now {
+            let options = VerifyOptions {
+                target: target.clone(),
+                volume: volume.clone(),
+                stop_on_fail: false,
+                cleanup: CleanupMode::OnSuccess,
+                progress,
+            };
+            let report = engine::verify_test(&options, console)?;
+            print_report(console, &report);
+        }
+        return Ok(());
     }
 
     let passes = prompt_u32("Enter pass count", 1)?;
@@ -154,6 +177,7 @@ pub fn run(console: &Console) -> Result<()> {
         stop_on_fail,
         cleanup,
         force: false,
+        progress,
     };
     let report = engine::run_test(&options, console)?;
     print_report(console, &report);
@@ -176,6 +200,22 @@ fn print_report(console: &Console, report: &TestReport) {
         "Files:  {} passed, {} failed, {} total",
         report.files_passed, report.files_failed, report.files_total
     );
+    if report.write_seconds > 0.0 {
+        println!(
+            "Write:  {} in {:.2}s ({:.1} MiB/s)",
+            format_bytes(report.actual_total),
+            report.write_seconds,
+            report.write_mib_per_sec
+        );
+    }
+    if report.read_seconds > 0.0 {
+        println!(
+            "Read:   {} in {:.2}s ({:.1} MiB/s)",
+            format_bytes(report.actual_total),
+            report.read_seconds,
+            report.read_mib_per_sec
+        );
+    }
 
     if !report.capacity_ok {
         console.fail(&format!(

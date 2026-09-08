@@ -19,6 +19,10 @@ pub struct Cli {
     #[arg(long, global = true, value_enum, default_value_t = ColorMode::Auto)]
     pub color: ColorMode,
 
+    /// Disable live speed/progress output.
+    #[arg(long, global = true)]
+    pub no_progress: bool,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }

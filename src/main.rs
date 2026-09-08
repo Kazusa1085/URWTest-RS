@@ -27,9 +27,10 @@ fn main() {
 fn real_main() -> Result<()> {
     let cli = Cli::parse();
     let console = Console::new(cli.color);
+    let progress = console.progress_enabled() && !cli.no_progress;
 
     match &cli.command {
-        None => interactive::run(&console)?,
+        None => interactive::run(&console, progress)?,
         Some(Commands::List) => {
             let volumes = volume::list_volumes();
             if cli.json {
@@ -56,6 +57,7 @@ fn real_main() -> Result<()> {
                 stop_on_fail: args.stop_on_fail,
                 cleanup: args.cleanup,
                 force: args.force,
+                progress,
             };
 
             let report = engine::run_test(&options, &console)?;
@@ -66,11 +68,13 @@ fn real_main() -> Result<()> {
         }
         Some(Commands::Verify(args)) => {
             let target = volume::normalize_target_path(&args.target);
-            let _volume = resolve_target(&target)?;
+            let volume = resolve_target(&target)?;
             let options = VerifyOptions {
                 target,
+                volume,
                 stop_on_fail: args.stop_on_fail,
                 cleanup: args.cleanup,
+                progress,
             };
 
             let report = engine::verify_test(&options, &console)?;
@@ -81,35 +85,36 @@ fn real_main() -> Result<()> {
         }
         Some(Commands::Status(args)) => {
             let target = volume::normalize_target_path(&args.target);
-            let _volume = resolve_target(&target)?;
-            let manifest = manifest::load(&target)?;
+            let volume = resolve_target(&target)?;
+            let state = manifest::load_state(&volume)?;
 
             if cli.json {
-                match manifest {
-                    Some(manifest) => {
-                        println!("{}", serde_json::to_string_pretty(&manifest)?);
+                match state {
+                    Some(state) => {
+                        println!("{}", serde_json::to_string_pretty(&state)?);
                     }
                     None => {
                         println!("null");
                     }
                 }
             } else {
-                match manifest {
-                    Some(manifest) => {
-                        println!("Target: {}", manifest.target);
-                        println!("Status: {:?}", manifest.status);
+                match state {
+                    Some(state) => {
+                        println!("Target: {}", state.target);
+                        println!("Status: {:?}", state.status);
+                        println!("Passes: {}/{}", state.completed_passes, state.total_passes);
+                        println!("Current pass: {}", state.current_pass);
                         println!(
-                            "Passes: {}/{}",
-                            manifest.completed_passes, manifest.total_passes
+                            "Capacity: {} / {}",
+                            format_bytes(state.actual_total),
+                            format_bytes(state.expected_total)
                         );
-                        println!("Current pass: {}", manifest.current_pass);
-                        println!("Files: {}", manifest.files.len());
-                        if let Some(error) = &manifest.last_error {
+                        if let Some(error) = &state.last_error {
                             println!("Last error: {error}");
                         }
                     }
                     None => {
-                        console.warn("No test state found on this volume.");
+                        console.warn("No test state found for this volume.");
                     }
                 }
             }
@@ -139,6 +144,22 @@ fn emit_report(cli: &Cli, console: &Console, report: &TestReport) -> Result<()> 
         "Files:  {} passed, {} failed, {} total",
         report.files_passed, report.files_failed, report.files_total
     );
+    if report.write_seconds > 0.0 {
+        println!(
+            "Write:  {} in {:.2}s ({:.1} MiB/s)",
+            format_bytes(report.actual_total),
+            report.write_seconds,
+            report.write_mib_per_sec
+        );
+    }
+    if report.read_seconds > 0.0 {
+        println!(
+            "Read:   {} in {:.2}s ({:.1} MiB/s)",
+            format_bytes(report.actual_total),
+            report.read_seconds,
+            report.read_mib_per_sec
+        );
+    }
 
     if !report.capacity_ok {
         console.fail(&format!(

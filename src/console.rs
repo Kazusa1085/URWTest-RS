@@ -12,16 +12,22 @@ const RESET: &str = "\x1b[0m";
 #[derive(Debug, Clone, Copy)]
 pub struct Console {
     color: bool,
+    terminal: bool,
 }
 
 impl Console {
     pub fn new(mode: ColorMode) -> Self {
+        let terminal = io::stdout().is_terminal();
         let color = match mode {
             ColorMode::Always => true,
             ColorMode::Never => false,
-            ColorMode::Auto => io::stdout().is_terminal(),
+            ColorMode::Auto => terminal,
         };
-        Self { color }
+        Self { color, terminal }
+    }
+
+    pub fn progress_enabled(&self) -> bool {
+        self.terminal
     }
 
     fn paint(&self, code: &str, message: &str) -> String {
