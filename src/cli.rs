@@ -71,10 +71,6 @@ pub struct RunArgs {
     /// Discard existing test state on the target volume and start over.
     #[arg(long)]
     pub force: bool,
-
-    /// Reserved for future confirmation prompts in non-interactive mode.
-    #[arg(long)]
-    pub yes: bool,
 }
 
 #[derive(Debug, Args)]
@@ -90,10 +86,6 @@ pub struct VerifyArgs {
     /// What to do with test files after verification.
     #[arg(long, value_enum, default_value_t = CleanupMode::OnSuccess)]
     pub cleanup: CleanupMode,
-
-    /// Reserved for future confirmation prompts in non-interactive mode.
-    #[arg(long)]
-    pub yes: bool,
 }
 
 #[derive(Debug, Args)]
