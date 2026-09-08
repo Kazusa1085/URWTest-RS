@@ -105,12 +105,11 @@ fn is_removable(device: &str) -> bool {
 
     // For a partition such as /dev/sdb1, /sys/class/block/sdb1/removable may
     // not exist. Resolve the symlink and check the parent block device.
-    if let Ok(real) = fs::canonicalize(&sys_path) {
-        if let Some(parent) = real.parent() {
-            if let Ok(value) = fs::read_to_string(parent.join("removable")) {
-                return value.trim() == "1";
-            }
-        }
+    if let Ok(real) = fs::canonicalize(&sys_path)
+        && let Some(parent) = real.parent()
+        && let Ok(value) = fs::read_to_string(parent.join("removable"))
+    {
+        return value.trim() == "1";
     }
 
     false
@@ -155,15 +154,14 @@ fn unescape_mount_path(value: &str) -> String {
     let mut index = 0usize;
 
     while index < bytes.len() {
-        if bytes[index] == b'\\' && index + 3 < bytes.len() {
-            let octal = &bytes[index + 1..index + 4];
-            if let Ok(text) = std::str::from_utf8(octal) {
-                if let Ok(value) = u8::from_str_radix(text, 8) {
-                    output.push(value);
-                    index += 4;
-                    continue;
-                }
-            }
+        if bytes[index] == b'\\'
+            && index + 3 < bytes.len()
+            && let Ok(text) = std::str::from_utf8(&bytes[index + 1..index + 4])
+            && let Ok(value) = u8::from_str_radix(text, 8)
+        {
+            output.push(value);
+            index += 4;
+            continue;
         }
         output.push(bytes[index]);
         index += 1;

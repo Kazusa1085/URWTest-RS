@@ -1,9 +1,9 @@
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
-use crate::console::{format_bytes, Console};
+use crate::console::{Console, format_bytes};
 use crate::engine::{self, RunOptions, TestReport, VerifyOptions};
 use crate::manifest::{self, ManifestStatus};
 use crate::types::{CleanupMode, VerifyMode};
@@ -26,8 +26,7 @@ pub fn run(console: &Console) -> Result<()> {
     if let Some(manifest) = manifest::load(&target)? {
         match manifest.status {
             ManifestStatus::PendingVerify => {
-                let verify_now =
-                    prompt_yes_no("检测到存在已经写入数据，是否立刻校验？", true)?;
+                let verify_now = prompt_yes_no("检测到存在已经写入数据，是否立刻校验？", true)?;
                 if verify_now {
                     let options = VerifyOptions {
                         target: target.clone(),
@@ -59,8 +58,7 @@ pub fn run(console: &Console) -> Result<()> {
                 return Ok(());
             }
             ManifestStatus::PassComplete => {
-                let continue_next =
-                    prompt_yes_no("检测到上一圈已完成，是否继续下一圈？", true)?;
+                let continue_next = prompt_yes_no("检测到上一圈已完成，是否继续下一圈？", true)?;
                 if continue_next {
                     let options = RunOptions {
                         target,
@@ -136,7 +134,11 @@ pub fn run(console: &Console) -> Result<()> {
     );
     println!(
         "Test files: {}",
-        if keep_files { "keep" } else { "remove on success" }
+        if keep_files {
+            "keep"
+        } else {
+            "remove on success"
+        }
     );
 
     if !prompt_yes_no("Start test?", true)? {

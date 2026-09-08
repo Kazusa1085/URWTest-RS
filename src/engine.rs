@@ -3,12 +3,12 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::Serialize;
 
-use crate::console::{format_bytes, Console};
+use crate::console::{Console, format_bytes};
 use crate::manifest::{self, Manifest, ManifestStatus, TestFile};
 use crate::types::{CleanupMode, VerifyMode};
 use crate::volume::{self, VolumeInfo};
@@ -167,7 +167,9 @@ pub fn run_test(options: &RunOptions, console: &Console) -> Result<TestReport> {
         if options.verify == VerifyMode::Delay {
             let seconds = options.delay.unwrap_or(0);
             if seconds > 0 {
-                console.info(&format!("Waiting {seconds} second(s) before verification..."));
+                console.info(&format!(
+                    "Waiting {seconds} second(s) before verification..."
+                ));
                 std::thread::sleep(Duration::from_secs(seconds));
             }
         }
@@ -459,11 +461,7 @@ fn write_pass(options: &RunOptions, pass: u32, console: &Console) -> Result<Writ
 }
 
 fn write_file(path: &Path, max_size: u64, seed: u64) -> Result<WriteOutcome> {
-    let mut file = match OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-    {
+    let mut file = match OpenOptions::new().write(true).create_new(true).open(path) {
         Ok(file) => file,
         Err(error) if is_disk_full(&error) => {
             return Ok(WriteOutcome {
@@ -495,8 +493,9 @@ fn write_file(path: &Path, max_size: u64, seed: u64) -> Result<WriteOutcome> {
         while offset < block_size {
             match file.write(&buffer[offset..block_size]) {
                 Ok(0) => {
-                    return Err(io::Error::new(io::ErrorKind::WriteZero, "write returned zero")
-                        .into());
+                    return Err(
+                        io::Error::new(io::ErrorKind::WriteZero, "write returned zero").into(),
+                    );
                 }
                 Ok(count) => offset += count,
                 Err(error) if is_disk_full(&error) => {
@@ -795,4 +794,3 @@ mod tests {
         assert_eq!(choose_chunk_size("exFAT", total), total);
     }
 }
-

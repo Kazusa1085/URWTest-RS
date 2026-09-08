@@ -9,11 +9,11 @@ mod volume;
 use std::path::Path;
 use std::process;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use clap::Parser;
 
 use crate::cli::{Cli, Commands};
-use crate::console::{format_bytes, Console};
+use crate::console::{Console, format_bytes};
 use crate::engine::{RunOptions, TestReport, VerifyOptions};
 use crate::types::VerifyMode;
 
@@ -120,12 +120,8 @@ fn real_main() -> Result<()> {
 }
 
 fn resolve_target(path: &Path) -> Result<volume::VolumeInfo> {
-    volume::find_volume(path).ok_or_else(|| {
-        anyhow!(
-            "target is not a mounted volume root: {}",
-            path.display()
-        )
-    })
+    volume::find_volume(path)
+        .ok_or_else(|| anyhow!("target is not a mounted volume root: {}", path.display()))
 }
 
 fn emit_report(cli: &Cli, console: &Console, report: &TestReport) -> Result<()> {

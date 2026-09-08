@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use super::{VolumeInfo, VolumeKind};
 
@@ -133,10 +133,7 @@ pub fn available_space(path: &Path) -> Result<u64> {
         )
     };
     if ok == 0 {
-        return Err(anyhow!(
-            "GetDiskFreeSpaceExW failed for {}",
-            path.display()
-        ));
+        return Err(anyhow!("GetDiskFreeSpaceExW failed for {}", path.display()));
     }
     Ok(total_free_bytes)
 }

@@ -131,7 +131,8 @@ pub fn remove_test_files(target: &Path) -> Result<()> {
     {
         let entry = entry?;
         let path = entry.path();
-        if path.is_file() && path.file_name().and_then(|name| name.to_str()) != Some(MANIFEST_FILE) {
+        if path.is_file() && path.file_name().and_then(|name| name.to_str()) != Some(MANIFEST_FILE)
+        {
             fs::remove_file(&path)
                 .with_context(|| format!("failed to remove test file {}", path.display()))?;
         }
