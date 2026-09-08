@@ -87,11 +87,21 @@ fn real_main() -> Result<()> {
             let target = volume::normalize_target_path(&args.target);
             let volume = resolve_target(&target)?;
             let state = manifest::load_state(&volume)?;
+            let files = manifest::scan_test_files(&target)?;
 
             if cli.json {
                 match state {
                     Some(state) => {
                         println!("{}", serde_json::to_string_pretty(&state)?);
+                    }
+                    None if !files.is_empty() => {
+                        let value = serde_json::json!({
+                            "state": null,
+                            "pending_files": files.len(),
+                            "pass": files[0].pass,
+                            "total_passes": files[0].total_passes,
+                        });
+                        println!("{}", serde_json::to_string_pretty(&value)?);
                     }
                     None => {
                         println!("null");
@@ -112,6 +122,16 @@ fn real_main() -> Result<()> {
                         if let Some(error) = &state.last_error {
                             println!("Last error: {error}");
                         }
+                    }
+                    None if !files.is_empty() => {
+                        console.warn(&format!(
+                            "No state file, but {} pending test file(s) found.",
+                            files.len()
+                        ));
+                        println!(
+                            "Detected pass: {} / {}",
+                            files[0].pass, files[0].total_passes
+                        );
                     }
                     None => {
                         console.warn("No test state found for this volume.");
